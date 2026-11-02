@@ -19,12 +19,16 @@ jobs:
 
       - name: 安裝相依套件
         run: |
-          pip install --upgrade yt-dlp python-telegram-bot
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
 
       - name: 執行監控程式
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          API_ID: ${{ secrets.API_ID }}
+          API_HASH: ${{ secrets.API_HASH }}
+          SESSION_STRING: ${{ secrets.SESSION_STRING }}
         run: |
           python monitor.py
 
