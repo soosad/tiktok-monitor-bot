@@ -1,0 +1,35 @@
+name: TikTok 24/7 Monitor
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'  # 每 30 分鐘自動跑一次
+  workflow_dispatch:        # 允許您隨時手動點擊執行
+
+jobs:
+  run-monitor:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 取得專案程式碼
+        uses: actions/checkout@v4
+
+      - name: 設定 Python 環境
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: 安裝相依套件
+        run: |
+          pip install --upgrade yt-dlp python-telegram-bot
+
+      - name: 執行監控程式
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          python monitor.py
+
+      - name: 自動將最新紀錄推回 GitHub 倉庫
+        uses: stefanzweig/git-auto-commit-action@v5
+        with:
+          commit_message: "🤖 Auto-update sent history and topics map"
+          file_pattern: sent_history.txt topics_map.json
