@@ -52,12 +52,35 @@ def load_accounts(filename):
             for line in f:
                 username = line.strip()
                 if username and not username.startswith('#'):
-                    if not username.startswith('@'):
-                        username = f"@{username}"
-                    accounts.append(username)
+                    # 統一格式儲存乾淨的主播名稱
+                    clean_name = username.replace('@', '')
+                    accounts.append(clean_name)
     return accounts
 
-def get_tiktok_videos(username, limit=5):
+async def ensure_topic_exists(bot: Bot, streamer_name: str) -> int:
+    """確保該主播專屬話題已建立，並以主播名字命名話題"""
+    if streamer_name in topics_map:
+        return topics_map[streamer_name]
+    
+    topic_name = f"{streamer_name}"  # 直接以主播名字為話題名稱
+    for _ in range(3):
+        try:
+            topic = await bot.create_forum_topic(chat_id=TELEGRAM_CHAT_ID, name=topic_name)
+            thread_id = topic.message_thread_id
+            topics_map[streamer_name] = thread_id
+            save_topics_map()
+            print(f"✨ 成功建立主播專屬話題：{topic_name} (ID: {thread_id})")
+            await asyncio.sleep(4.0)
+            return thread_id
+        except TelegramError as e:
+            if "Flood control exceeded" in str(e):
+                await asyncio.sleep(20)
+            else:
+                print(f"⚠️ 建立話題失敗 [{streamer_name}]: {e}")
+                break
+    return None
+
+def get_tiktok_videos(streamer_name, limit=5):
     """取得主播最新影片清單，包含發布時間戳記"""
     ydl_opts = {
         'extract_flat': True,
@@ -67,7 +90,7 @@ def get_tiktok_videos(username, limit=5):
             'Referer': 'https://www.tiktok.com/'
         }
     }
-    url = f"https://www.tiktok.com/{username}"
+    url = f"https://www.tiktok.com/@{streamer_name}"
     
     for attempt in range(2):
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -81,35 +104,15 @@ def get_tiktok_videos(username, limit=5):
                             v_id = entry.get('id')
                             if v_id:
                                 title = entry.get('title') or entry.get('description') or '無標題影片'
-                                v_url = entry.get('url') or f"https://www.tiktok.com/{username.replace('@','')}/video/{v_id}"
-                                timestamp = entry.get('timestamp') # 影片上傳的 Unix timestamp
+                                v_url = entry.get('url') or f"https://www.tiktok.com/@{streamer_name}/video/{v_id}"
+                                timestamp = entry.get('timestamp')
                                 videos.append({'id': v_id, 'url': v_url, 'title': title, 'timestamp': timestamp})
                     return videos
             except:
                 time.sleep(2)
     return []
 
-async def ensure_topic_exists(bot: Bot, username: str) -> int:
-    if username in topics_map:
-        return topics_map[username]
-    
-    topic_name = f"🎬 {username}"
-    for _ in range(3):
-        try:
-            topic = await bot.create_forum_topic(chat_id=TELEGRAM_CHAT_ID, name=topic_name)
-            thread_id = topic.message_thread_id
-            topics_map[username] = thread_id
-            save_topics_map()
-            await asyncio.sleep(4.0)
-            return thread_id
-        except TelegramError as e:
-            if "Flood control exceeded" in str(e):
-                await asyncio.sleep(20)
-            else:
-                break
-    return None
-
-async def download_and_send_video(bot: Bot, thread_id: int, video_url: str, title: str, username: str, upload_time_str: str):
+async def download_and_send_video(bot: Bot, thread_id: int, video_url: str, title: str, streamer_name: str, upload_time_str: str):
     file_path = f"temp_{int(time.time() * 1000)}.mp4"
     ydl_opts = {
         'outtmpl': file_path,
@@ -123,17 +126,17 @@ async def download_and_send_video(bot: Bot, thread_id: int, video_url: str, titl
     
     success = False
     try:
-        # 1. 先在 General 話題 (ID: 1) 發送提示訊息
+        # 1. 在 General 話題 (ID: 1) 發送提示通知
         try:
             await bot.send_message(
                 chat_id=TELEGRAM_CHAT_ID,
                 message_thread_id=GENERAL_THREAD_ID,
-                text=f"🚨 **新影片通知**\n👤 主播：{username}\n⏰ 上傳時間：{upload_time_str}\n📌 標題：{title}"
+                text=f"🚨 **新影片通知**\n👤 主播：{streamer_name}\n⏰ 上傳時間：{upload_time_str}\n📌 標題：{title}"
             )
         except Exception as e:
             print(f"⚠️ 發送 General 提示失敗: {e}")
 
-        # 2. 下載影片並傳送到對應主播話題
+        # 2. 下載影片並傳送到該主播專屬話題
         loop = asyncio.get_running_loop()
         await loop.run_in_executor(None, lambda: yt_dlp.YoutubeDL(ydl_opts).download([video_url]))
         
@@ -195,38 +198,41 @@ async def main():
 
     print(f"🎯 開始檢查 {len(accounts)} 個主播的最新影片...")
     
+    # 程式啟動時，先確保所有名單中的主播都有對應的話題並記錄下來
+    for streamer_name in accounts:
+        await ensure_topic_exists(bot, streamer_name)
+
     # 計算過去 11 分鐘的時間閾值
     now_utc = datetime.now(timezone.utc)
     eleven_minutes_ago = now_utc - timedelta(minutes=11)
     
-    for username in accounts:
-        videos = get_tiktok_videos(username, limit=5)
+    for streamer_name in accounts:
+        thread_id = topics_map.get(streamer_name)
+        if not thread_id:
+            continue
+            
+        videos = get_tiktok_videos(streamer_name, limit=5)
         for video in reversed(videos):
             v_id = video['id']
             v_timestamp = video['timestamp']
             
-            # 檢查是否已經發送過
             if v_id not in sent_video_ids:
-                # 如果平台有提供時間戳，嚴格檢查是否在過去 11 分鐘內；若無則預設抓取以確保不漏接
-                is_recent = True
                 upload_time_str = "剛剛"
                 
                 if v_timestamp:
                     upload_dt = datetime.fromtimestamp(v_timestamp, tz=timezone.utc)
                     upload_time_str = upload_dt.astimezone().strftime('%Y-%m-%d %H:%M:%S')
                     if upload_dt < eleven_minutes_ago:
-                        # 超過 11 分鐘的舊影片，直接加入歷史紀錄但不發送
+                        # 超過 11 分鐘的舊影片，略過發送並加入歷史紀錄
                         sent_video_ids.add(v_id)
                         save_history_id(v_id)
                         continue
 
-                print(f"📥 發現符合條件的新影片 [{username}]: {video['title']}")
-                thread_id = await ensure_topic_exists(bot, username)
-                if thread_id:
-                    sent_ok = await download_and_send_video(bot, thread_id, video['url'], video['title'], username, upload_time_str)
-                    if sent_ok:
-                        sent_video_ids.add(v_id)
-                        save_history_id(v_id)
+                print(f"📥 發現符合條件的新影片 [{streamer_name}]: {video['title']}")
+                sent_ok = await download_and_send_video(bot, thread_id, video['url'], video['title'], streamer_name, upload_time_str)
+                if sent_ok:
+                    sent_video_ids.add(v_id)
+                    save_history_id(v_id)
                 await asyncio.sleep(4.0)
 
 if __name__ == "__main__":
