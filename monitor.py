@@ -63,26 +63,29 @@ def load_accounts(filename):
 
 
 async def ensure_topic_exists(bot: Bot, streamer_name: str) -> int:
-  """確保該主播專屬話題已建立，若群組內已有同名話題則自動對應，絕不重複建立"""
+  """確保該主播專屬話題已建立。建立前會強制先掃描超級群組內所有現有話題，絕不重複建立"""
+  topic_name = f"{streamer_name}"
+
+  # 1. 如果記憶體中有，直接回傳
   if streamer_name in topics_map:
     return topics_map[streamer_name]
 
-  topic_name = f"{streamer_name}"  # 以主播名字為話題名稱
-
+  # 2. 🌟 強制全面掃描超級群組內現有的所有話題
   try:
-    # 🌟 主動向 Telegram 取得超級群組內現有的所有話題清單
-    existing_topics = await bot.get_forum_topics(chat_id=TELEGRAM_CHAT_ID)
-    for topic in existing_topics:
+    topics = await bot.get_forum_topics(chat_id=TELEGRAM_CHAT_ID)
+    for topic in topics:
       if topic.name == topic_name:
-        # 如果群組內已經有了，直接記錄並覆用該 ID
         topics_map[streamer_name] = topic.message_thread_id
         save_topics_map()
-        print(f"🔗 發現現有話題，自動對應：{topic_name} (ID: {topic.message_thread_id})")
+        print(
+            f"🔍 掃描發現群組已有此話題，直接對應：{topic_name} (ID:"
+            f" {topic.message_thread_id})"
+        )
         return topic.message_thread_id
   except Exception as e:
-    print(f"⚠️ 取得現有話題清單時發生錯誤: {e}")
+    print(f"⚠️ 掃描群組現有話題時發生錯誤: {e}")
 
-  # 若群組內真的沒有，才建立新話題
+  # 3. 若群組內真的完全找不到同名話題，才執行建立
   for _ in range(3):
     try:
       topic = await bot.create_forum_topic(
@@ -91,7 +94,7 @@ async def ensure_topic_exists(bot: Bot, streamer_name: str) -> int:
       thread_id = topic.message_thread_id
       topics_map[streamer_name] = thread_id
       save_topics_map()
-      print(f"✨ 成功建立主播專屬話題：{topic_name} (ID: {thread_id})")
+      print(f"✨ 成功在群組中建立新話題：{topic_name} (ID: {thread_id})")
       await asyncio.sleep(4.0)
       return thread_id
     except TelegramError as e:
