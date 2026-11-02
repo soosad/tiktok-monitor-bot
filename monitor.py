@@ -2,13 +2,14 @@ import os
 import time
 import random
 import json
+import asyncio
 import yt_dlp
 from telegram import Bot
 from telegram.error import TelegramError
 
 # 從 GitHub Secrets 讀取密鑰（保護您的 Bot 隱私）
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
-TELEGRAM_CHAT_ID = int(os.environ.get("TELEGRAM_CHAT_ID", "-1004257942363"))
+TELEGRAM_CHAT_ID = int(os.environ.get("TELEGRAM_CHAT_ID", "-1004401703362"))
 
 ACCOUNTS_FILE = 'accounts (2end).txt'
 HISTORY_FILE = 'sent_history.txt'
@@ -160,7 +161,6 @@ async def download_and_send_video(bot: Bot, thread_id: int, video_url: str, titl
             os.remove(file_path)
     return success
 
-import asyncio
 async def main():
     if not TELEGRAM_BOT_TOKEN:
         print("❌ 找不到 Telegram Bot Token")
