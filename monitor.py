@@ -97,7 +97,9 @@ async def ensure_topic_exists(bot: Bot, username: str) -> int:
             thread_id = topic.message_thread_id
             topics_map[username] = thread_id
             save_topics_map()
-            await asyncio.sleep(2)
+            
+            # ⏳ 新增頻道（話題）完成後的緩衝秒數（這裡設定暫停 4 秒）
+            await asyncio.sleep(4.0)
             return thread_id
         except TelegramError as e:
             if "Flood control exceeded" in str(e):
@@ -159,6 +161,11 @@ async def download_and_send_video(bot: Bot, thread_id: int, video_url: str, titl
     finally:
         if os.path.exists(file_path):
             os.remove(file_path)
+            
+    # ⏳ 上傳影片完成後的緩衝秒數（這裡設定隨機暫停 3 到 5 秒，避免發太快被 Telegram 封鎖）
+    if success:
+        await asyncio.sleep(random.uniform(3.0, 5.0))
+        
     return success
 
 async def main():
