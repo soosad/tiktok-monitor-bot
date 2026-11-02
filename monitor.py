@@ -3,6 +3,7 @@ from datetime import datetime, timezone, timedelta
 import json
 import os
 import random
+import subprocess
 import time
 from telegram import Bot
 from telegram.error import TelegramError
@@ -39,6 +40,21 @@ def load_topics_map():
 def save_topics_map():
     with open(TOPICS_FILE, "w", encoding="utf-8") as f:
         json.dump(topics_map, f, ensure_ascii=False, indent=2)
+
+def save_and_push_topic_immediately(streamer_name, thread_id):
+    """當下即時儲存對應並推送到 GitHub 倉庫"""
+    save_topics_map()
+    print(f"💾 【即時儲存】已將 【{streamer_name}】 (ID: {thread_id}) 寫入 topics_map.json")
+    
+    try:
+        subprocess.run(["git", "config", "--global", "user.name", "github-actions[bot]"], check=True)
+        subprocess.run(["git", "config", "--global", "user.email", "github-actions[bot]@users.noreply.github.io"], check=True)
+        subprocess.run(["git", "add", "topics_map.json"], check=True)
+        subprocess.run(["git", "commit", "-m", f"🤖 Auto-update topic map for {streamer_name}"], check=True)
+        subprocess.run(["git", "push"], check=True)
+        print(f"🚀 【即時推送】已成功將 topics_map.json 推回 GitHub 倉庫！")
+    except Exception as e:
+        print(f"⚠️ 【即時推送失敗】（可能是本地無變動或權限問題，不影響主程式）: {e}")
 
 def load_history():
     if os.path.exists(HISTORY_FILE):
@@ -85,7 +101,6 @@ async def clean_and_sync_topics(accounts):
         me = await client.get_me()
         print(f"👤 【Debug 成功】Telethon 已成功登入帳號: {me.first_name} (ID: {me.id})")
 
-        # 處理 Chat ID 格式 (確保帶有 -100)
         chat_id_int = int(TELEGRAM_CHAT_ID)
         print(f"💬 【Debug】正在取得聊天室實體，目標 Chat ID: {chat_id_int}")
         entity = await client.get_entity(chat_id_int)
@@ -161,7 +176,10 @@ async def ensure_topic_exists(bot: Bot, streamer_name: str) -> int:
             topic = await bot.create_forum_topic(chat_id=int(TELEGRAM_CHAT_ID), name=topic_name)
             thread_id = topic.message_thread_id
             topics_map[streamer_name] = thread_id
-            save_topics_map()
+            
+            # 建立成功當下立刻儲存並推送到 GitHub
+            save_and_push_topic_immediately(streamer_name, thread_id)
+            
             print(f"✨ 成功在群組中建立新話題：{topic_name} (ID: {thread_id})")
             await asyncio.sleep(4.0)
             return thread_id
