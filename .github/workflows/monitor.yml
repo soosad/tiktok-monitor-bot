@@ -2,7 +2,7 @@ name: TikTok 24/7 Monitor
 
 on:
   schedule:
-    - cron: '*/30 * * * *'  # 每 30 分鐘自動執行一次
+    - cron: '*/10 * * * *'  # 每 10 分鐘自動執行一次
   workflow_dispatch:        # 允許手動點擊執行
 
 jobs:
@@ -15,7 +15,7 @@ jobs:
       - name: 設定 Python 環境
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: '3.11'
 
       - name: 安裝相依套件
         run: |
