@@ -11,7 +11,7 @@ from telegram.error import TelegramError
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = int(os.environ.get("TELEGRAM_CHAT_ID", "-1004401703362"))
 
-ACCOUNTS_FILE = 'accounts (2end).txt'
+ACCOUNTS_FILE = 'accounts (2).txt'
 HISTORY_FILE = 'sent_history.txt'
 TOPICS_FILE = 'topics_map.json'
 
