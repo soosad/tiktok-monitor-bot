@@ -2,8 +2,8 @@ name: TikTok 24/7 Monitor
 
 on:
   schedule:
-    - cron: '*/30 * * * *'  # 每 30 分鐘自動跑一次
-  workflow_dispatch:        # 允許您隨時手動點擊執行
+    - cron: '*/30 * * * *'  # 每 30 分鐘自動執行一次
+  workflow_dispatch:        # 允許手動點擊執行
 
 jobs:
   run-monitor:
@@ -29,7 +29,7 @@ jobs:
           python monitor.py
 
       - name: 自動將最新紀錄推回 GitHub 倉庫
-        uses: stefanzweig/git-auto-commit-action@v5
+        uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "🤖 Auto-update sent history and topics map"
           file_pattern: sent_history.txt topics_map.json
