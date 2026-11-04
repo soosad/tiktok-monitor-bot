@@ -318,7 +318,7 @@ async def main():
         await ensure_topic_exists(bot, streamer_name)
 
     now_utc = datetime.now(timezone.utc)
-    eleven_minutes_ago = now_utc - timedelta(minutes=11)
+    four_hours_ago = now_utc - timedelta(hours=4)  # 改為往回推 4 小時
 
     for streamer_name in accounts:
         thread_id = topics_map.get(streamer_name)
@@ -336,7 +336,7 @@ async def main():
                 if v_timestamp:
                     upload_dt = datetime.fromtimestamp(v_timestamp, tz=timezone.utc)
                     upload_time_str = upload_dt.astimezone().strftime('%Y-%m-%d %H:%M:%S')
-                    if upload_dt < eleven_minutes_ago:
+                    if upload_dt < four_hours_ago:  # 超過 4 小時前的舊影片略過
                         sent_video_ids.add(v_id)
                         save_history_id(v_id)
                         continue
