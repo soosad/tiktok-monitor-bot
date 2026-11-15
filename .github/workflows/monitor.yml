@@ -1,39 +1,59 @@
-name: TikTok 24/7 Monitor
+name: TikTok Monitor Bot
 
 on:
   schedule:
-    - cron: '*/10 * * * *'  # 每 10 分鐘自動執行一次
-  workflow_dispatch:        # 允許手動點擊執行
+    # 調整為每 4 小時自動執行一次
+    - cron: '0 */4 * * *'
+  workflow_dispatch: # 允許在 GitHub 頁面手動點擊觸發
+
+permissions:
+  contents: write # 必須開啟寫入權限，才能將 sent_history.txt 與 topics_map.json 推回倉庫
 
 jobs:
-  run-monitor:
+  monitor:
     runs-on: ubuntu-latest
-    steps:
-      - name: 取得專案程式碼
-        uses: actions/checkout@v4
 
-      - name: 設定 Python 環境
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: 安裝相依套件
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: 執行監控程式
+      - name: Create cookies.txt from Secret
+        run: |
+          # 將 GitHub Secret 中的 Cookie還原為 cookies.txt
+          printf "%s" "${{ secrets.TIKTOK_COOKIES }}" > cookies.txt
+
+      - name: Run monitor script
         env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           API_ID: ${{ secrets.API_ID }}
           API_HASH: ${{ secrets.API_HASH }}
           SESSION_STRING: ${{ secrets.SESSION_STRING }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
           python monitor.py
 
-      - name: 自動將最新紀錄推回 GitHub 倉庫
-        uses: stefanzweifel/git-auto-commit-action@v5
-        with:
-          commit_message: "🤖 Auto-update sent history and topics map"
-          file_pattern: sent_history.txt topics_map.json
+      - name: Clean up cookies.txt
+        if: always()
+        run: |
+          # 執行完畢後刪除暫存的 cookie 檔案，保護帳號安全
+          rm -f cookies.txt
+
+      - name: Commit and push updated history and topics
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.io"
+          git pull --rebase
+          git add sent_history.txt topics_map.json
+          git diff --quiet && git diff --staged --quiet || (git commit -m "🤖 Auto-update sent history and topics map" && git push)
