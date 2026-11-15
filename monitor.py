@@ -177,7 +177,6 @@ async def ensure_topic_exists(bot: Bot, streamer_name: str) -> int:
             thread_id = topic.message_thread_id
             topics_map[streamer_name] = thread_id
             
-            # 建立成功當下立刻儲存並推送到 GitHub
             save_and_push_topic_immediately(streamer_name, thread_id)
             
             print(f"✨ 成功在群組中建立新話題：{topic_name} (ID: {thread_id})")
@@ -195,6 +194,7 @@ def get_tiktok_videos(streamer_name, limit=3):
     ydl_opts = {
         'extract_flat': True,
         'quiet': True,
+        'cookiefile': 'cookies.txt',  # 引入 Cookie 檔案以避開反爬蟲限制
         'http_headers': {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
             'Referer': 'https://www.tiktok.com/',
@@ -233,6 +233,7 @@ async def download_and_send_video(bot: Bot, thread_id: int, video_url: str, titl
         'outtmpl': file_path,
         'format': 'best',
         'quiet': True,
+        'cookiefile': 'cookies.txt',  # 下載時同樣引入 Cookie
         'http_headers': {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
             'Referer': 'https://www.tiktok.com/',
@@ -318,7 +319,7 @@ async def main():
         await ensure_topic_exists(bot, streamer_name)
 
     now_utc = datetime.now(timezone.utc)
-    four_hours_ago = now_utc - timedelta(hours=4)  # 改為往回推 4 小時
+    five_hours_ago = now_utc - timedelta(hours=5)  # 配合 4 小時排程，時間窗放寬至 5 小時以防排程延遲漏抓
 
     for streamer_name in accounts:
         thread_id = topics_map.get(streamer_name)
@@ -336,7 +337,7 @@ async def main():
                 if v_timestamp:
                     upload_dt = datetime.fromtimestamp(v_timestamp, tz=timezone.utc)
                     upload_time_str = upload_dt.astimezone().strftime('%Y-%m-%d %H:%M:%S')
-                    if upload_dt < four_hours_ago:  # 超過 4 小時前的舊影片略過
+                    if upload_dt < five_hours_ago:  # 超過 5 小時前的舊影片略過
                         sent_video_ids.add(v_id)
                         save_history_id(v_id)
                         continue
