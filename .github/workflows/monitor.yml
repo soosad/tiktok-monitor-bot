@@ -54,6 +54,11 @@ jobs:
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.io"
+          
+          # 先將本地變動暫存，避免 pull --rebase 時發生衝突中斷
+          git stash || true
           git pull --rebase
+          git stash pop || true
+          
           git add sent_history.txt topics_map.json
           git diff --quiet && git diff --staged --quiet || (git commit -m "🤖 Auto-update sent history and topics map" && git push)
